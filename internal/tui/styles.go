@@ -53,6 +53,25 @@ var (
 			Foreground(lipgloss.Color("114")).
 			Bold(true)
 
+	markdownHeadingStyle = lipgloss.NewStyle().
+				Foreground(accentColor).
+				Bold(true)
+
+	markdownCodeStyle = lipgloss.NewStyle().
+				Foreground(yellowColor).
+				Background(lipgloss.Color("236"))
+
+	markdownCodeBlockStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("229")).
+				Background(lipgloss.Color("236"))
+
+	markdownItalicStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("250")).
+				Italic(true)
+
+	markdownBoldStyle = lipgloss.NewStyle().
+				Bold(true)
+
 	wrapStyle = lipgloss.NewStyle().
 			Foreground(textColor)
 

@@ -660,7 +660,11 @@ func (a *App) renderMessages() string {
 		if content == "" && msg.Role == "assistant" && a.streaming {
 			content = "..."
 		}
-		fmt.Fprintln(&b, wrapStyle.Width(max(20, a.width-10)).Render(content))
+		if msg.Role == "assistant" {
+			fmt.Fprintln(&b, renderAssistantMarkdown(content, max(20, a.width-10)))
+		} else {
+			fmt.Fprintln(&b, wrapStyle.Width(max(20, a.width-10)).Render(content))
+		}
 		fmt.Fprintln(&b)
 	}
 	return b.String()
