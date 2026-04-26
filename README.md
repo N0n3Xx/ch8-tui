@@ -53,6 +53,7 @@ go build -o ollama-tui ./cmd/ollama-tui
 | `Ctrl+S` | Save chat |
 | `Ctrl+R` | Regenerate last response |
 | `Ctrl+E` | Edit last user message |
+| `End` / `Ctrl+J` | Jump to latest chat message |
 | `Ctrl+C` | Cancel generation, or quit when idle |
 | `Esc` | Close modal |
 

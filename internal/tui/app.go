@@ -52,8 +52,9 @@ type App struct {
 	models   []ollama.Model
 	selected string
 
-	input    textarea.Model
-	viewport viewport.Model
+	input         textarea.Model
+	viewport      viewport.Model
+	stickToBottom bool
 
 	screen       screen
 	status       genState
@@ -112,16 +113,17 @@ func New(cfg *config.Config, store *storage.Store, client *ollama.Client) *App {
 
 	model := cfg.DefaultModel
 	return &App{
-		cfg:          cfg,
-		store:        store,
-		client:       client,
-		chat:         storage.NewChat(model),
-		selected:     model,
-		input:        input,
-		viewport:     viewport.New(80, 20),
-		status:       stateIdle,
-		modelLoading: true,
-		telemetryOn:  cfg.TelemetryEnabled,
+		cfg:           cfg,
+		store:         store,
+		client:        client,
+		chat:          storage.NewChat(model),
+		selected:      model,
+		input:         input,
+		viewport:      viewport.New(80, 20),
+		stickToBottom: true,
+		status:        stateIdle,
+		modelLoading:  true,
+		telemetryOn:   cfg.TelemetryEnabled,
 	}
 }
 
@@ -136,7 +138,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.width = msg.Width
 		a.height = msg.Height
 		a.resize()
-		a.refreshViewport()
+		a.refreshViewport(false)
 	case modelsLoadedMsg:
 		a.modelLoading = false
 		if msg.err != nil {
@@ -170,7 +172,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case streamMsg:
 		cmd := a.handleStream(ollama.StreamChunk(msg))
-		a.refreshViewport()
+		a.refreshViewport(false)
 		return a, cmd
 	case saveDoneMsg:
 		if msg.err != nil {
@@ -199,6 +201,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 		a.resize()
 		a.viewport, cmd = a.viewport.Update(msg)
+		a.stickToBottom = a.viewport.AtBottom()
 		cmds = append(cmds, cmd)
 	}
 	return a, tea.Batch(cmds...)
@@ -252,11 +255,12 @@ func (a *App) handleKey(key tea.KeyMsg) tea.Cmd {
 	case "ctrl+n":
 		a.cancelStream()
 		a.chat = storage.NewChat(a.selected)
+		a.stickToBottom = true
 		a.lastTelem = nil
 		a.errText = ""
 		a.status = stateIdle
 		a.input.SetValue("")
-		a.refreshViewport()
+		a.refreshViewport(true)
 	case "ctrl+s":
 		return saveChat(a.store, a.chat)
 	case "ctrl+o", "alt+o", "f3":
@@ -272,10 +276,12 @@ func (a *App) handleKey(key tea.KeyMsg) tea.Cmd {
 	case "ctrl+e":
 		if !a.streaming {
 			a.editLastUser()
-			a.refreshViewport()
+			a.refreshViewport(true)
 		}
 	case "ctrl+l":
 		a.errText = ""
+	case "end", "ctrl+j":
+		a.stickToBottom = true
 		a.viewport.GotoBottom()
 	}
 	return nil
@@ -283,7 +289,7 @@ func (a *App) handleKey(key tea.KeyMsg) tea.Cmd {
 
 func isChatCommandKey(key tea.KeyMsg) bool {
 	switch key.String() {
-	case "ctrl+c", "enter", "alt+enter", "shift+enter", "ctrl+n", "ctrl+s", "ctrl+o", "ctrl+m", "ctrl+t", "ctrl+r", "ctrl+e", "ctrl+l", "alt+m", "alt+o", "alt+t", "f2", "f3", "f4":
+	case "ctrl+c", "enter", "alt+enter", "shift+enter", "ctrl+n", "ctrl+s", "ctrl+o", "ctrl+m", "ctrl+t", "ctrl+r", "ctrl+e", "ctrl+l", "ctrl+j", "end", "alt+m", "alt+o", "alt+t", "f2", "f3", "f4":
 		return true
 	default:
 		return false
@@ -309,7 +315,7 @@ func (a *App) toggleTelemetry() {
 	a.cfg.TelemetryEnabled = a.telemetryOn
 	_ = config.Save(a.cfg)
 	a.resize()
-	a.refreshViewport()
+	a.refreshViewport(false)
 }
 
 func (a *App) handleModelKeys(key tea.KeyMsg) tea.Cmd {
@@ -383,7 +389,8 @@ func (a *App) handleChatKeys(key tea.KeyMsg) tea.Cmd {
 			a.lastTelem = lastTelemetry(chat)
 			a.input.SetValue("")
 			a.screen = screenChat
-			a.refreshViewport()
+			a.stickToBottom = true
+			a.refreshViewport(true)
 		}
 	case "d":
 		if len(a.filteredChats()) > 0 {
@@ -422,7 +429,7 @@ func (a *App) sendInput() tea.Cmd {
 	a.input.SetValue("")
 	a.errText = ""
 	a.startStream()
-	a.refreshViewport()
+	a.refreshViewport(true)
 	return tea.Batch(saveChat(a.store, a.chat), readStream(a.stream))
 }
 
@@ -434,7 +441,7 @@ func (a *App) regenerate() tea.Cmd {
 		return nil
 	}
 	a.startStream()
-	a.refreshViewport()
+	a.refreshViewport(true)
 	return readStream(a.stream)
 }
 
@@ -548,23 +555,32 @@ func (a *App) resize() {
 	}
 	inputHeight := a.inputHeight()
 	footerHeight := 1
-	chatHeight := max(5, a.height-inputHeight-footerHeight-telemetryHeight)
+	inputPanelHeight := inputHeight + 3
+	chatPanelChrome := 3
+	chatHeight := max(3, a.height-footerHeight-telemetryHeight-inputPanelHeight-chatPanelChrome)
 	a.viewport.Width = max(10, a.width-6)
 	a.viewport.Height = chatHeight
 	a.input.SetWidth(max(10, a.width-8))
 	a.input.SetHeight(inputHeight)
 }
 
-func (a *App) refreshViewport() {
-	a.viewport.SetContent(a.renderMessages())
-	a.viewport.GotoBottom()
+func (a *App) refreshViewport(forceBottom bool) {
+	content := a.renderMessages()
+	if contentHeight := lipgloss.Height(content); contentHeight < a.viewport.Height {
+		content = strings.Repeat("\n", a.viewport.Height-contentHeight) + content
+	}
+	a.viewport.SetContent(content)
+	if forceBottom || a.stickToBottom {
+		a.viewport.GotoBottom()
+		a.stickToBottom = true
+	}
 }
 
 func (a *App) chatPanel() string {
 	title := truncate(a.chat.Title, max(12, a.width/3))
 	model := emptyDefault(a.selected, "none")
 	header := fitPair(" chat: "+title+" ", fmt.Sprintf("model: %s  state: %s  %s", model, a.statePlain(), a.elapsedLabel()), max(10, a.width-4))
-	return panelStyle.Width(max(0, a.width-2)).Height(a.viewport.Height + 2).Render(labelStyle.Render(header) + "\n" + a.viewport.View())
+	return panelStyle.Width(max(0, a.width-2)).Render(labelStyle.Render(header) + "\n" + a.viewport.View())
 }
 
 func (a *App) telemetryPanel() string {
@@ -606,7 +622,7 @@ func (a *App) footer() string {
 			items = append(items, footerItem{sep: true, label: truncate(extra, remaining)})
 		}
 	}
-	return statusStyle.Width(width).Render(renderFooterItems(items, width))
+	return statusStyle.Render(renderFooterItems(items, width))
 }
 
 func (a *App) footerExtra() string {
@@ -866,7 +882,9 @@ func renderFooterItems(items []footerItem, width int) string {
 		if used+lipgloss.Width(plain) > width {
 			remaining := width - used
 			if remaining > 0 {
-				b.WriteString(truncate(plain, remaining))
+				part := truncate(plain, remaining)
+				b.WriteString(part)
+				used += lipgloss.Width(part)
 			}
 			break
 		}
