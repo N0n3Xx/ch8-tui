@@ -44,11 +44,11 @@ go build -o ollama-tui ./cmd/ollama-tui
 
 | Shortcut | Action |
 | --- | --- |
-| `Enter` | Send message |
+| `Enter` | Send message, or open model selector when input is empty |
 | `Alt+Enter` / `Shift+Enter` | Insert newline when supported by terminal |
-| `Ctrl+M` | Model selector |
-| `Ctrl+O` | Chat browser |
-| `Ctrl+T` | Toggle telemetry |
+| `F2` / `Alt+M` / `Ctrl+M` | Model selector |
+| `F3` / `Alt+O` / `Ctrl+O` | Chat browser |
+| `F4` / `Alt+T` / `Ctrl+T` | Toggle telemetry |
 | `Ctrl+N` | New chat |
 | `Ctrl+S` | Save chat |
 | `Ctrl+R` | Regenerate last response |
@@ -57,6 +57,8 @@ go build -o ollama-tui ./cmd/ollama-tui
 | `Esc` | Close modal |
 
 Model selector and chat browser support `up`/`down` or `j`/`k` navigation.
+
+Some terminals reserve or encode `Ctrl+M` as `Enter`. Use `F2` or `Alt+M` for the model selector if `Ctrl+M` is intercepted by your terminal.
 
 ## Config And Storage
 
@@ -83,4 +85,3 @@ Important fields:
 ```
 
 Chats are stored as JSON files under `storage_path`.
-

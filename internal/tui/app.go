@@ -95,9 +95,15 @@ type saveDoneMsg struct{ err error }
 type tickMsg time.Time
 type resetStateMsg struct{}
 
+type footerItem struct {
+	key   string
+	label string
+	sep   bool
+}
+
 func New(cfg *config.Config, store *storage.Store, client *ollama.Client) *App {
 	input := textarea.New()
-	input.Placeholder = "Message Ollama..."
+	input.Placeholder = ""
 	input.Prompt = ""
 	input.CharLimit = 20000
 	input.ShowLineNumbers = false
@@ -237,6 +243,9 @@ func (a *App) handleKey(key tea.KeyMsg) tea.Cmd {
 		if a.streaming {
 			return nil
 		}
+		if strings.TrimSpace(a.input.Value()) == "" {
+			return a.openModelSelector()
+		}
 		return a.sendInput()
 	case "alt+enter", "shift+enter":
 		a.input.SetValue(a.input.Value() + "\n")
@@ -250,22 +259,12 @@ func (a *App) handleKey(key tea.KeyMsg) tea.Cmd {
 		a.refreshViewport()
 	case "ctrl+s":
 		return saveChat(a.store, a.chat)
-	case "ctrl+o":
-		a.screen = screenChats
-		a.chatFilter = ""
-		a.confirmDel = false
-		return loadChats(a.store)
-	case "ctrl+m":
-		a.screen = screenModels
-		a.modelErr = ""
-		a.modelLoading = true
-		return loadModels(a.client)
-	case "ctrl+t":
-		a.telemetryOn = !a.telemetryOn
-		a.cfg.TelemetryEnabled = a.telemetryOn
-		_ = config.Save(a.cfg)
-		a.resize()
-		a.refreshViewport()
+	case "ctrl+o", "alt+o", "f3":
+		return a.openChatBrowser()
+	case "ctrl+m", "alt+m", "f2":
+		return a.openModelSelector()
+	case "ctrl+t", "alt+t", "f4":
+		a.toggleTelemetry()
 	case "ctrl+r":
 		if !a.streaming {
 			return a.regenerate()
@@ -284,11 +283,33 @@ func (a *App) handleKey(key tea.KeyMsg) tea.Cmd {
 
 func isChatCommandKey(key tea.KeyMsg) bool {
 	switch key.String() {
-	case "ctrl+c", "enter", "alt+enter", "shift+enter", "ctrl+n", "ctrl+s", "ctrl+o", "ctrl+m", "ctrl+t", "ctrl+r", "ctrl+e", "ctrl+l":
+	case "ctrl+c", "enter", "alt+enter", "shift+enter", "ctrl+n", "ctrl+s", "ctrl+o", "ctrl+m", "ctrl+t", "ctrl+r", "ctrl+e", "ctrl+l", "alt+m", "alt+o", "alt+t", "f2", "f3", "f4":
 		return true
 	default:
 		return false
 	}
+}
+
+func (a *App) openModelSelector() tea.Cmd {
+	a.screen = screenModels
+	a.modelErr = ""
+	a.modelLoading = true
+	return loadModels(a.client)
+}
+
+func (a *App) openChatBrowser() tea.Cmd {
+	a.screen = screenChats
+	a.chatFilter = ""
+	a.confirmDel = false
+	return loadChats(a.store)
+}
+
+func (a *App) toggleTelemetry() {
+	a.telemetryOn = !a.telemetryOn
+	a.cfg.TelemetryEnabled = a.telemetryOn
+	_ = config.Save(a.cfg)
+	a.resize()
+	a.refreshViewport()
 }
 
 func (a *App) handleModelKeys(key tea.KeyMsg) tea.Cmd {
@@ -388,7 +409,7 @@ func (a *App) sendInput() tea.Cmd {
 		return nil
 	}
 	if a.selected == "" {
-		a.errText = "No model selected. Press Ctrl+M to choose an installed Ollama model."
+		a.errText = "No model selected. Press F2 or Alt+M to choose an installed Ollama model."
 		return nil
 	}
 	if a.editingLast {
@@ -567,26 +588,43 @@ func (a *App) telemetryPanel() string {
 }
 
 func (a *App) inputPanel() string {
-	return inputStyle.Width(max(0, a.width-2)).Render(labelStyle.Render(" input ") + "\n> " + a.input.View())
+	label := " input "
+	if strings.TrimSpace(a.input.Value()) == "" {
+		label = " input - type a message "
+	}
+	return inputStyle.Width(max(0, a.width-2)).Render(labelStyle.Render(label) + "\n> " + a.input.View())
 }
 
 func (a *App) footer() string {
-	left := fmt.Sprintf("%s Chats | %s Models | %s Telemetry | %s New | %s Regen | %s Quit",
-		keyStyle.Render("Ctrl+O"), keyStyle.Render("Ctrl+M"), keyStyle.Render("Ctrl+T"), keyStyle.Render("Ctrl+N"), keyStyle.Render("Ctrl+R"), keyStyle.Render("Ctrl+C"))
-	extra := ""
-	if a.errText != "" {
-		extra = " | " + a.errText
-	} else if a.lastTelem != nil && !a.streaming {
-		extra = fmt.Sprintf(" | tok/s %.1f | tokens %d", a.lastTelem.TokensPerSecond, a.lastTelem.TotalTokens)
-	} else if a.streaming {
-		extra = " | " + a.lastTokenAgo()
+	width := max(1, a.width)
+	items := a.footerItems(width)
+	lineWidth := footerItemsWidth(items)
+	extra := a.footerExtra()
+	if extra != "" {
+		remaining := width - lineWidth - 3
+		if remaining >= 10 {
+			items = append(items, footerItem{sep: true, label: truncate(extra, remaining)})
+		}
 	}
-	return statusStyle.Width(a.width).Render(truncate(left+extra, a.width))
+	return statusStyle.Width(width).Render(renderFooterItems(items, width))
+}
+
+func (a *App) footerExtra() string {
+	if a.errText != "" {
+		return a.errText
+	}
+	if a.lastTelem != nil && !a.streaming {
+		return fmt.Sprintf("tok/s %.1f | tokens %d", a.lastTelem.TokensPerSecond, a.lastTelem.TotalTokens)
+	}
+	if a.streaming {
+		return a.lastTokenAgo()
+	}
+	return ""
 }
 
 func (a *App) renderMessages() string {
 	if len(a.chat.Messages) == 0 {
-		return emptyStyle.Width(max(10, a.width-8)).Height(max(1, a.viewport.Height)).Render("No messages yet. Press Ctrl+M to choose a model, then type a message.")
+		return emptyStyle.Width(max(10, a.width-8)).Height(max(1, a.viewport.Height)).Render("No messages yet. Press F2 or Alt+M to choose a model, then type a message.")
 	}
 	var b strings.Builder
 	for _, msg := range a.chat.Messages {
@@ -738,6 +776,110 @@ func (a *App) lastTokenAgo() string {
 func (a *App) inputHeight() int {
 	lines := strings.Count(a.input.Value(), "\n") + 3
 	return min(6, max(3, lines))
+}
+
+func (a *App) footerItems(width int) []footerItem {
+	variants := [][]footerItem{
+		{
+			{key: "F2/Alt+M", label: "Models"},
+			{key: "F3/Alt+O", label: "Chats"},
+			{key: "F4/Alt+T", label: "Telemetry"},
+			{key: "Ctrl+N", label: "New"},
+			{key: "Ctrl+R", label: "Regen"},
+			{key: "Ctrl+C", label: "Quit"},
+		},
+		{
+			{key: "F2", label: "Models"},
+			{key: "F3", label: "Chats"},
+			{key: "F4", label: "Telemetry"},
+			{key: "^N", label: "New"},
+			{key: "^R", label: "Regen"},
+			{key: "^C", label: "Quit"},
+		},
+		{
+			{key: "F2", label: "Models"},
+			{key: "F3", label: "Chats"},
+			{key: "F4", label: "Stats"},
+			{key: "^N", label: "New"},
+			{key: "^R", label: "Retry"},
+			{key: "^C", label: "Quit"},
+		},
+		{
+			{key: "F2", label: "Models"},
+			{key: "F3", label: "Chats"},
+			{key: "F4", label: "Stats"},
+			{key: "^C", label: "Quit"},
+		},
+		{
+			{key: "F2", label: "Model"},
+			{key: "F3", label: "Chats"},
+			{key: "^C", label: "Quit"},
+		},
+	}
+	for _, items := range variants {
+		if footerItemsWidth(items) <= width {
+			return items
+		}
+	}
+	return variants[len(variants)-1]
+}
+
+func footerItemsWidth(items []footerItem) int {
+	width := 0
+	for i, item := range items {
+		if i > 0 || item.sep {
+			width += 3
+		}
+		if item.sep {
+			width += lipgloss.Width(item.label)
+			continue
+		}
+		width += lipgloss.Width(item.key)
+		if item.label != "" {
+			width += 1 + lipgloss.Width(item.label)
+		}
+	}
+	return width
+}
+
+func renderFooterItems(items []footerItem, width int) string {
+	var b strings.Builder
+	used := 0
+	for i, item := range items {
+		if i > 0 || item.sep {
+			if used+3 > width {
+				break
+			}
+			b.WriteString(sepStyle.Render(" | "))
+			used += 3
+		}
+		if item.sep {
+			label := truncate(item.label, width-used)
+			b.WriteString(label)
+			used += lipgloss.Width(label)
+			continue
+		}
+		plain := item.key
+		if item.label != "" {
+			plain += " " + item.label
+		}
+		if used+lipgloss.Width(plain) > width {
+			remaining := width - used
+			if remaining > 0 {
+				b.WriteString(truncate(plain, remaining))
+			}
+			break
+		}
+		b.WriteString(keyStyle.Render(item.key))
+		if item.label != "" {
+			b.WriteString(" " + item.label)
+		}
+		used += lipgloss.Width(plain)
+	}
+	if used < width {
+		b.WriteString(strings.Repeat(" ", width-used))
+	}
+	return b.String()
 }
 
 func loadModels(client *ollama.Client) tea.Cmd {

@@ -32,8 +32,10 @@ var (
 
 	statusStyle = lipgloss.NewStyle().
 			Background(lipgloss.Color("235")).
-			Foreground(lipgloss.Color("250")).
-			Padding(0, 1)
+			Foreground(lipgloss.Color("250"))
+
+	sepStyle = lipgloss.NewStyle().
+			Foreground(subtleColor)
 
 	labelStyle = lipgloss.NewStyle().
 			Foreground(cyanColor).
