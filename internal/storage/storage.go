@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 
-	"ch8-tui/internal/telemetry"
+	"github.com/N0n3Xx/ch8-tui/internal/telemetry"
 )
 
 type Message struct {
@@ -33,6 +34,8 @@ type Chat struct {
 type Store struct {
 	path string
 }
+
+var chatIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 
 func New(path string) (*Store, error) {
 	if err := os.MkdirAll(path, 0o755); err != nil {
@@ -60,6 +63,9 @@ func (s *Store) Save(chat *Chat) error {
 	if chat.ID == "" {
 		chat.ID = fmt.Sprintf("%d", time.Now().UnixNano())
 	}
+	if !validChatID(chat.ID) {
+		return fmt.Errorf("invalid chat id %q", chat.ID)
+	}
 	if chat.CreatedAt.IsZero() {
 		chat.CreatedAt = time.Now()
 	}
@@ -75,6 +81,9 @@ func (s *Store) Save(chat *Chat) error {
 }
 
 func (s *Store) Load(id string) (*Chat, error) {
+	if !validChatID(id) {
+		return nil, fmt.Errorf("invalid chat id %q", id)
+	}
 	data, err := os.ReadFile(filepath.Join(s.path, id+".json"))
 	if err != nil {
 		return nil, err
@@ -83,10 +92,14 @@ func (s *Store) Load(id string) (*Chat, error) {
 	if err := json.Unmarshal(data, &chat); err != nil {
 		return nil, err
 	}
+	chat.ID = id
 	return &chat, nil
 }
 
 func (s *Store) Delete(id string) error {
+	if !validChatID(id) {
+		return fmt.Errorf("invalid chat id %q", id)
+	}
 	err := os.Remove(filepath.Join(s.path, id+".json"))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
@@ -104,12 +117,17 @@ func (s *Store) List() ([]*Chat, error) {
 		if file.IsDir() || filepath.Ext(file.Name()) != ".json" {
 			continue
 		}
+		id := strings.TrimSuffix(file.Name(), ".json")
+		if !validChatID(id) {
+			continue
+		}
 		data, err := os.ReadFile(filepath.Join(s.path, file.Name()))
 		if err != nil {
 			continue
 		}
 		var chat Chat
 		if json.Unmarshal(data, &chat) == nil {
+			chat.ID = id
 			chats = append(chats, &chat)
 		}
 	}
@@ -148,4 +166,8 @@ func Preview(chat *Chat) string {
 
 func singleLine(s string) string {
 	return strings.Join(strings.Fields(s), " ")
+}
+
+func validChatID(id string) bool {
+	return id != "." && id != ".." && chatIDPattern.MatchString(id)
 }

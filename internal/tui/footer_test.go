@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/lipgloss"
 
-	"ch8-tui/internal/storage"
+	"github.com/N0n3Xx/ch8-tui/internal/storage"
 )
 
 func TestFooterFitsCommonWidths(t *testing.T) {

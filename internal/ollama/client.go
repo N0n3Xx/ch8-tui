@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"ch8-tui/internal/storage"
-	"ch8-tui/internal/telemetry"
+	"github.com/N0n3Xx/ch8-tui/internal/storage"
+	"github.com/N0n3Xx/ch8-tui/internal/telemetry"
 )
 
 type Client struct {

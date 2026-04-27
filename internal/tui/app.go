@@ -13,10 +13,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"ch8-tui/internal/config"
-	"ch8-tui/internal/ollama"
-	"ch8-tui/internal/storage"
-	"ch8-tui/internal/telemetry"
+	"github.com/N0n3Xx/ch8-tui/internal/config"
+	"github.com/N0n3Xx/ch8-tui/internal/ollama"
+	"github.com/N0n3Xx/ch8-tui/internal/storage"
+	"github.com/N0n3Xx/ch8-tui/internal/telemetry"
 )
 
 type screen int
@@ -577,8 +577,8 @@ func (a *App) refreshViewport(forceBottom bool) {
 }
 
 func (a *App) chatPanel() string {
-	title := truncate(a.chat.Title, max(12, a.width/3))
-	model := emptyDefault(a.selected, "none")
+	title := truncate(safeDisplayText(a.chat.Title), max(12, a.width/3))
+	model := safeDisplayText(emptyDefault(a.selected, "none"))
 	header := fitPair(" chat: "+title+" ", fmt.Sprintf("model: %s  state: %s  %s", model, a.statePlain(), a.elapsedLabel()), max(10, a.width-4))
 	return panelStyle.Width(max(0, a.width-2)).Render(labelStyle.Render(header) + "\n" + a.viewport.View())
 }
@@ -595,10 +595,10 @@ func (a *App) telemetryPanel() string {
 		t := a.lastTelem
 		lines = append(lines,
 			fmt.Sprintf("response %s | first token %s | tok/s %.1f | prompt %d | completion %d | total %d", t.ResponseTime().Round(time.Millisecond), t.FirstTokenTime().Round(time.Millisecond), t.TokensPerSecond, t.PromptTokens, t.CompletionTokens, t.TotalTokens),
-			fmt.Sprintf("load %s | prompt eval %s | generation %s | model %s", durNanos(t.LoadDurationNanos), durNanos(t.PromptEvalDurationNanos), durNanos(t.EvalDurationNanos), t.Model),
+			fmt.Sprintf("load %s | prompt eval %s | generation %s | model %s", durNanos(t.LoadDurationNanos), durNanos(t.PromptEvalDurationNanos), durNanos(t.EvalDurationNanos), safeDisplayText(t.Model)),
 		)
 	} else {
-		lines = append(lines, fmt.Sprintf("state %s | model %s | chat %s", a.statePlain(), emptyDefault(a.selected, "none"), a.chat.ID))
+		lines = append(lines, fmt.Sprintf("state %s | model %s | chat %s", a.statePlain(), safeDisplayText(emptyDefault(a.selected, "none")), safeDisplayText(a.chat.ID)))
 	}
 	return panelStyle.Width(max(0, a.width-2)).Render(strings.Join(lines, "\n"))
 }
@@ -627,7 +627,7 @@ func (a *App) footer() string {
 
 func (a *App) footerExtra() string {
 	if a.errText != "" {
-		return a.errText
+		return safeDisplayText(a.errText)
 	}
 	if a.lastTelem != nil && !a.streaming {
 		return fmt.Sprintf("tok/s %.1f | tokens %d", a.lastTelem.TokensPerSecond, a.lastTelem.TotalTokens)
@@ -660,6 +660,7 @@ func (a *App) renderMessages() string {
 		if content == "" && msg.Role == "assistant" && a.streaming {
 			content = "..."
 		}
+		content = safeDisplayText(content)
 		if msg.Role == "assistant" {
 			fmt.Fprintln(&b, renderAssistantMarkdown(content, max(20, a.width-10)))
 		} else {
@@ -676,7 +677,7 @@ func (a *App) modelSelector() string {
 	if a.modelLoading {
 		fmt.Fprintln(&b, "Fetching models from Ollama...")
 	} else if a.modelErr != "" {
-		fmt.Fprintf(&b, "Ollama unreachable\n%s\n\nStart Ollama or check ollama_base_url, then press r.\n", a.modelErr)
+		fmt.Fprintf(&b, "Ollama unreachable\n%s\n\nStart Ollama or check ollama_base_url, then press r.\n", safeDisplayText(a.modelErr))
 	} else if len(a.models) == 0 {
 		fmt.Fprintln(&b, "No installed models found. Start Ollama and pull a model, then press r.")
 	} else {
@@ -689,7 +690,7 @@ func (a *App) modelSelector() string {
 			if model.Name == a.selected {
 				marker = "*"
 			}
-			fmt.Fprintf(&b, "%s%s %-34s %9s  %s\n", cursor, marker, truncate(model.Name, 34), humanSize(model.Size), model.ModifiedAt.Format("2006-01-02"))
+			fmt.Fprintf(&b, "%s%s %-34s %9s  %s\n", cursor, marker, truncate(safeDisplayText(model.Name), 34), humanSize(model.Size), model.ModifiedAt.Format("2006-01-02"))
 		}
 	}
 	fmt.Fprintln(&b, "\nEnter select | r refresh | Esc close")
@@ -698,7 +699,7 @@ func (a *App) modelSelector() string {
 
 func (a *App) chatBrowser() string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s /%s\n", labelStyle.Render(" chats "), a.chatFilter)
+	fmt.Fprintf(&b, "%s /%s\n", labelStyle.Render(" chats "), safeDisplayText(a.chatFilter))
 	chats := a.filteredChats()
 	if len(chats) == 0 {
 		fmt.Fprintln(&b, "No saved chats match.")
@@ -708,7 +709,7 @@ func (a *App) chatBrowser() string {
 			if i == a.chatCursor {
 				cursor = "> "
 			}
-			fmt.Fprintf(&b, "%s%-32s %-18s %s\n    %s\n", cursor, truncate(chat.Title, 32), truncate(chat.SelectedModel, 18), chat.UpdatedAt.Format("Jan 02 15:04"), storage.Preview(chat))
+			fmt.Fprintf(&b, "%s%-32s %-18s %s\n    %s\n", cursor, truncate(safeDisplayText(chat.Title), 32), truncate(safeDisplayText(chat.SelectedModel), 18), chat.UpdatedAt.Format("Jan 02 15:04"), safeDisplayText(storage.Preview(chat)))
 		}
 	}
 	if a.confirmDel {
