@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"ollama-tui/internal/storage"
-	"ollama-tui/internal/telemetry"
+	"ch8-tui/internal/storage"
+	"ch8-tui/internal/telemetry"
 )
 
 type Client struct {

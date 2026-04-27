@@ -1,4 +1,4 @@
-# Ollama TUI
+# Ch8 TUI
 
 A terminal-only chat client for local Ollama models. It is built with Go, Bubble Tea, Bubbles, and Lip Gloss. There is no browser UI, Electron shell, cloud API, or auth layer.
 
@@ -17,14 +17,14 @@ ollama pull qwen2.5:7b
 
 ```sh
 go mod tidy
-go run ./cmd/ollama-tui
+go run ./cmd/ch8-tui
 ```
 
 Build a binary:
 
 ```sh
-go build -o ollama-tui ./cmd/ollama-tui
-./ollama-tui
+go build -o ch8-tui ./cmd/ch8-tui
+./ch8-tui
 ```
 
 ## Features
@@ -66,7 +66,7 @@ Some terminals reserve or encode `Ctrl+M` as `Enter`. Use `F2` or `Alt+M` for th
 Config is created at:
 
 ```text
-~/.config/ollama-tui/config.json
+~/.config/ch8-tui/config.json
 ```
 
 Important fields:
@@ -80,7 +80,7 @@ Important fields:
   "max_context_characters": 24000,
   "stall_threshold_seconds": 10,
   "telemetry_enabled": true,
-  "storage_path": "~/.config/ollama-tui/chats",
+  "storage_path": "~/.config/ch8-tui/chats",
   "theme": "default"
 }
 ```

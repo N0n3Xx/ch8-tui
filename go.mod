@@ -1,4 +1,4 @@
-module ollama-tui
+module ch8-tui
 
 go 1.22
 

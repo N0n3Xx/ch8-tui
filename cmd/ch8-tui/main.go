@@ -6,10 +6,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"ollama-tui/internal/config"
-	"ollama-tui/internal/ollama"
-	"ollama-tui/internal/storage"
-	"ollama-tui/internal/tui"
+	"ch8-tui/internal/config"
+	"ch8-tui/internal/ollama"
+	"ch8-tui/internal/storage"
+	"ch8-tui/internal/tui"
 )
 
 func main() {

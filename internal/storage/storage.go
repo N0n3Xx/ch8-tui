@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"ollama-tui/internal/telemetry"
+	"ch8-tui/internal/telemetry"
 )
 
 type Message struct {

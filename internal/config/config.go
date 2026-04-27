@@ -26,7 +26,7 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	appDir := filepath.Join(root, "ollama-tui")
+	appDir := filepath.Join(root, "ch8-tui")
 	if err := os.MkdirAll(appDir, 0o755); err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func Save(cfg *Config) error {
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(root, "ollama-tui", "config.json")
+	path := filepath.Join(root, "ch8-tui", "config.json")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
